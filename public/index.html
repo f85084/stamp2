@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>集點趣</title>
+
+    <!-- Favicon -->
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%23475569' d='M312 201.8c0-17.4 9.2-33.2 19.9-47C344.5 138.5 352 118.1 352 96c0-53-43-96-96-96s-96 43-96 96c0 22.1 7.5 42.5 20.1 58.8c10.7 13.8 19.9 29.6 19.9 47c0 29.9-24.3 54.2-54.2 54.2H112C50.1 256 0 306.1 0 368c0 20.9 13.4 38.7 32 45.3V464c0 26.5 21.5 48 48 48H432c26.5 0 48-21.5 48-48V413.3c18.6-6.6 32-24.4 32-45.3c0-61.9-50.1-112-112-112H366.2c-29.9 0-54.2-24.3-54.2-54.2zM416 416H96V400H416v16z'/%3E%3C/svg%3E"
+    />
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Vue.js 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+    <!-- Firebase Configuration -->
+    <script type="module" src="./firebase-config.js?v=2"></script>
+
+    <!-- FontAwesome Icons -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <!-- Google Fonts: Noto Sans TC -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap"
+      rel="stylesheet"
+    />
+
+    <style>
+      body {
+        font-family: "Noto Sans TC", sans-serif;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .font-serif {
+        font-family: "Playfair Display", serif;
+      }
+
+      .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+      }
+
+      .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+
+      @keyframes popup {
+        0% {
+          transform: scale(0.5) rotate(-10deg);
+          opacity: 0;
+        }
+        60% {
+          transform: scale(1.1) rotate(5deg);
+        }
+        100% {
+          transform: scale(1) rotate(0);
+          opacity: 1;
+        }
+      }
+
+      .animate-popup {
+        animation: popup 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .animate-fade-in {
+        animation: fadeIn 0.4s ease-out;
+      }
+
+      .inner-shadow {
+        box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);
+      }
+
+      @keyframes pop {
+        0% {
+          transform: scale(0.8);
+          opacity: 0;
+        }
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+
+      .animate-pop {
+        animation: pop 0.2s ease-out;
+      }
+    </style>
+  </head>
+  <body class="bg-stone-50 min-h-screen">
+    <div id="app"></div>
+
+    <!-- Vue Templates -->
+    <script type="text/x-template" id="stamp-view-template">
+      <div class="px-6 pt-6 pb-24 animate-fade-in">
+        <div class="text-center space-y-1 mb-6">
+          <h2 class="text-stone-500 text-xs tracking-[0.2em] uppercase">KIDS REWARDS</h2>
+          <h1 class="text-3xl font-serif text-stone-800 tracking-wide">集點卡</h1>
+        </div>
+
+        <div v-if="childrenList.length > 0" class="flex gap-2 mt-3 overflow-x-auto pb-2 scrollbar-hide mb-6">
+          <button
+            v-for="child in childrenList"
+            :key="child.name"
+            @click="$emit('update:searchName', child.name)"
+            :class="[
+              'whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium transition-all',
+              searchName === child.name
+                ? getTheme(child.theme).bg + ' text-white shadow-md'
+                : 'bg-white border border-stone-200 text-stone-500 hover:bg-stone-50',
+            ]"
+          >
+            {{ child.name }}
+          </button>
+        </div>
+
+        <div v-if="isCardVisible" class="flex-1 flex flex-col items-center w-full max-w-sm mx-auto relative z-10">
+          <div class="w-full bg-white rounded-3xl p-6 shadow-xl shadow-stone-200/50 ring-1 ring-stone-100 relative overflow-hidden transition-all duration-500">
+            <img
+              v-if="currentBgUrl"
+              :src="currentBgUrl"
+              class="absolute inset-0 w-full h-full object-cover"
+              alt="背景"
+            />
+            <div v-if="currentBgUrl" class="absolute inset-0 bg-gradient-to-b from-white/70 to-white/95"></div>
+            <div v-else :class="'absolute top-0 left-0 right-0 h-[9rem] opacity-10 ' + currentTheme.bg"></div>
+
+            <div class="flex justify-between items-start mb-6 relative z-10">
+              <div>
+                <p class="text-stone-500 text-xs mb-1 font-bold tracking-wider">名字</p>
+                <p class="text-2xl font-bold text-stone-800 font-serif border-b-2 border-stone-100 pb-1 min-w-[100px]">
+                  {{ searchName }}
+                </p>
+              </div>
+              <div class="text-right">
+                <p class="text-stone-500 text-xs mb-1 font-bold tracking-wider">獎品</p>
+                <div :class="'flex items-center justify-end gap-1 ' + currentTheme.text">
+                  <i class="fa-solid fa-gift"></i>
+                  <span class="text-3xl font-bold leading-none">{{ stats.rewards }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-6 relative z-10">
+              <p class="text-center text-stone-500 text-xs mb-2">
+                還差
+                <span :class="currentTheme.text + ' font-bold text-base mx-1'">{{ 10 - stats.currentCard }}</span>
+                點
+              </p>
+            </div>
+
+            <div class="grid grid-cols-5 gap-3 relative z-10">
+              <div
+                v-for="i in 10"
+                :key="i"
+                :class="[
+                  'aspect-square rounded-full flex items-center justify-center text-sm font-bold transition-all duration-500 overflow-hidden',
+                  i - 1 < stats.currentCard
+                    ? 'bg-white ' + currentTheme.text + ' shadow-md scale-100'
+                    : 'bg-stone-100 text-stone-300 scale-90 inner-shadow',
+                ]"
+              >
+                <template v-if="i - 1 < stats.currentCard">
+                  <img v-if="currentStamp && currentStamp.startsWith('data:')" :src="currentStamp" class="w-full h-full object-contain" />
+                  <span v-else-if="currentStamp" class="text-lg">{{ currentStamp }}</span>
+                  <i v-else class="fa-solid fa-stamp"></i>
+                </template>
+                <template v-else>{{ i }}</template>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="flex-1 flex flex-col items-center justify-center text-stone-300 space-y-4 min-h-[50vh]">
+          <i class="fa-solid fa-user opacity-10" style="font-size: 80px;"></i>
+          <p>請選擇名單開始集點</p>
+        </div>
+
+        <div v-if="isCardVisible" class="fixed bottom-32 left-0 right-0 flex justify-center z-50 pointer-events-none">
+          <button
+            @click="handleStamp"
+            :disabled="stampAnimation !== null"
+            :class="[
+              'pointer-events-auto relative w-24 h-24 rounded-full shadow-2xl flex items-center justify-center transition-all text-white border-4 border-white ring-1 ring-stone-100 overflow-hidden',
+              stampAnimation === 'stamping'
+                ? 'scale-90 ' + currentTheme.bg
+                : currentTheme.bg + ' hover:scale-105 hover:rotate-3 active:scale-90',
+            ]"
+          >
+            <i v-if="stampAnimation === 'done'" class="fa-solid fa-check animate-bounce" style="font-size: 48px;"></i>
+            <i v-else class="fa-solid fa-stamp" style="font-size: 48px;"></i>
+            <span
+              v-if="stampAnimation === 'stamping'"
+              :class="'absolute inset-0 rounded-full border-4 opacity-0 animate-ping ' + currentTheme.text"
+              style="border-color: currentColor"
+            ></span>
+          </button>
+        </div>
+      </div>
+    </script>
+
+    <script type="text/x-template" id="summary-view-template">
+      <div class="px-6 pt-6 pb-24 animate-fade-in">
+        <div class="flex justify-between items-center mb-6">
+          <h1 class="text-2xl font-serif text-stone-800">集點狀況</h1>
+          <div class="flex gap-2">
+            <button
+              @click="$emit('add-new-profile')"
+              class="px-4 py-2 bg-emerald-500 text-white rounded-full shadow-sm hover:bg-emerald-600 transition-all text-xs font-bold"
+            >
+              <i class="fa-solid fa-plus"></i> 新增名單
+            </button>
+          </div>
+        </div>
+
+        <div v-if="isLoading" class="flex justify-center py-10">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+        </div>
+
+        <div v-else class="space-y-3">
+          <div
+            v-for="item in summary"
+            :key="item.name"
+            class="bg-white p-4 rounded-2xl shadow-sm border border-stone-100 flex items-center justify-between"
+          >
+            <div class="flex items-center gap-4 cursor-pointer" @click="$emit('select-user', item.name)">
+              <div :class="'w-12 h-12 rounded-2xl flex items-center justify-center text-white text-lg font-bold shadow-md ' + item.theme.bg">
+                <img v-if="item.bgUrl" :src="item.bgUrl" class="w-full h-full object-cover rounded-2xl" />
+                <template v-else>{{ item.name.charAt(0) }}</template>
+              </div>
+              <div>
+                <h3 class="font-bold text-stone-700 text-lg">{{ item.name }}</h3>
+                <p class="text-xs text-stone-500">
+                  總點數:
+                  <span class="text-stone-600 font-mono text-sm font-bold">{{ item.total }}</span>
+                </p>
+              </div>
+            </div>
+            <div class="flex gap-2 items-center">
+              <button
+                @click="$emit('edit-profile', item.name)"
+                class="p-2 text-stone-500 hover:text-stone-600 transition-colors"
+              >
+                <i class="fa-solid fa-gear"></i>
+              </button>
+              <button
+                @click="$emit('redeem', item.name, item.total)"
+                class="px-4 py-2 bg-rose-50 text-rose-500 hover:bg-rose-100 rounded-xl text-xs font-bold border border-rose-100 transition-colors"
+              >
+                兌換
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </script>
+
+    <script type="text/x-template" id="redeem-modal-template">
+      <Teleport to="body">
+        <div
+          v-if="visible"
+          class="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 backdrop-blur-sm"
+          @click.self="close"
+        >
+          <div class="bg-white rounded-2xl w-full max-w-xs p-6 animate-pop shadow-2xl mx-4">
+            <h3 class="text-lg font-bold text-center mb-4">兌換扣點 ({{ name }})</h3>
+            <p class="text-center text-stone-500 text-sm mb-6">目前點數: {{ currentPoints }}</p>
+
+            <div class="flex items-center justify-center space-x-4 mb-8">
+              <button
+                @click="decreaseCount"
+                class="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center text-xl font-bold hover:bg-stone-200 transition-colors"
+              >
+                -
+              </button>
+              <input
+                v-model.number="redeemCount"
+                type="number"
+                :min="1"
+                :max="currentPoints"
+                class="w-16 text-center text-xl font-bold outline-none border-b-2 border-emerald-200 focus:border-emerald-500"
+              />
+              <button
+                @click="increaseCount"
+                class="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center text-xl font-bold hover:bg-stone-200 transition-colors"
+              >
+                +
+              </button>
+            </div>
+
+            <div class="flex space-x-3">
+              <button
+                @click="close"
+                class="flex-1 py-3 bg-stone-100 rounded-xl font-bold text-stone-500 hover:bg-stone-200 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                @click="confirm"
+                class="flex-1 py-3 bg-emerald-500 text-white rounded-xl font-bold shadow-lg shadow-emerald-200 hover:bg-emerald-600 transition-colors"
+              >
+                確認扣點
+              </button>
+            </div>
+          </div>
+        </div>
+      </Teleport>
+    </script>
+
+    <script type="text/x-template" id="edit-profile-modal-template">
+      <Teleport to="body">
+        <div
+          v-if="visible"
+          class="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 backdrop-blur-sm"
+          @click.self="close"
+        >
+          <div class="bg-white rounded-2xl w-full max-w-md p-6 animate-pop shadow-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-lg font-bold text-center mb-6">{{ isNewProfile ? '新增名單' : '編輯名單' }}</h3>
+
+            <div class="space-y-6">
+              <div class="space-y-2">
+                <label class="text-xs font-bold text-stone-500 tracking-wider">姓名</label>
+                <input
+                  v-model="formState.name"
+                  type="text"
+                  class="block w-full p-4 bg-stone-50 rounded-2xl border-none focus:ring-2 focus:ring-stone-200 text-lg text-stone-800"
+                  placeholder="例如: Anna"
+                />
+              </div>
+
+              <div class="space-y-2">
+                <label class="text-xs font-bold text-stone-500 tracking-wider flex items-center gap-2">
+                  <i class="fa-solid fa-image"></i> 背景圖片
+                </label>
+                <div class="flex gap-2">
+                  <input
+                    v-model="formState.bgUrl"
+                    type="text"
+                    class="flex-1 p-3 bg-stone-50 rounded-2xl border-none text-sm text-stone-600"
+                    placeholder="https://... 或點擊上傳圖片"
+                    readonly
+                  />
+                  <label class="relative">
+                    <input
+                      ref="bgFileInput"
+                      type="file"
+                      accept="image/*"
+                      @change="handleBgImageUpload"
+                      class="hidden"
+                    />
+                    <button
+                      type="button"
+                      @click="bgFileInputClick"
+                      :disabled="uploadingBg"
+                      class="px-4 py-3 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 transition-colors disabled:bg-stone-300 flex items-center gap-2"
+                    >
+                      <i v-if="uploadingBg" class="fa-solid fa-spinner fa-spin"></i>
+                      <i v-else class="fa-solid fa-upload"></i>
+                      <span v-if="!uploadingBg">上傳</span>
+                    </button>
+                  </label>
+                </div>
+                <div v-if="formState.bgUrl" class="mt-2 relative rounded-xl overflow-hidden">
+                  <img :src="formState.bgUrl" class="w-full h-32 object-cover rounded-xl" />
+                  <button
+                    type="button"
+                    @click="formState.bgUrl = ''"
+                    class="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                  >
+                    <i class="fa-solid fa-times text-xs"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <label class="text-xs font-bold text-stone-500 tracking-wider flex items-center gap-2">
+                  <i class="fa-solid fa-stamp"></i> 自訂印章 (Emoji 或圖片)
+                </label>
+                <div class="flex gap-2">
+                  <input
+                    v-model="formState.stamp"
+                    type="text"
+                    class="flex-1 p-3 bg-stone-50 rounded-2xl border-none text-sm text-stone-600"
+                    placeholder="🐻 或 https://... 或點擊上傳"
+                  />
+                  <label class="relative">
+                    <input
+                      ref="stampFileInput"
+                      type="file"
+                      accept="image/*"
+                      @change="handleStampImageUpload"
+                      class="hidden"
+                    />
+                    <button
+                      type="button"
+                      @click="stampFileInputClick"
+                      :disabled="uploadingStamp"
+                      class="px-4 py-3 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 transition-colors disabled:bg-stone-300 flex items-center gap-2"
+                    >
+                      <i v-if="uploadingStamp" class="fa-solid fa-spinner fa-spin"></i>
+                      <i v-else class="fa-solid fa-upload"></i>
+                      <span v-if="!uploadingStamp">上傳</span>
+                    </button>
+                  </label>
+                </div>
+                <div v-if="formState.stamp && formState.stamp.startsWith('data:')" class="mt-2 flex justify-center">
+                  <div class="relative w-20 h-20 rounded-xl overflow-hidden bg-stone-100">
+                    <img :src="formState.stamp" class="w-full h-full object-contain" />
+                    <button
+                      type="button"
+                      @click="formState.stamp = ''"
+                      class="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                    >
+                      <i class="fa-solid fa-times text-xs"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="space-y-3">
+                <label class="text-xs font-bold text-stone-500 tracking-wider flex items-center gap-2">
+                  <i class="fa-solid fa-palette"></i> 風格
+                </label>
+                <div class="grid grid-cols-6 gap-2">
+                  <button
+                    v-for="[key, theme] in Object.entries(CARD_THEMES).filter(([k]) => k !== 'default')"
+                    :key="key"
+                    type="button"
+                    @click="formState.theme = key"
+                    :class="[
+                      'aspect-square rounded-xl flex flex-col items-center justify-center gap-1 border-2 transition-all',
+                      formState.theme === key
+                        ? 'border-stone-800 bg-stone-50 scale-105'
+                        : 'border-transparent hover:bg-stone-50',
+                    ]"
+                  >
+                    <div :class="'w-5 h-5 rounded-full ' + theme.bg"></div>
+                    <span class="text-[9px] text-stone-500">{{ theme.name }}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex space-x-3">
+                <button
+                  @click="close"
+                  class="flex-1 py-3 bg-stone-100 rounded-xl font-bold text-stone-500 hover:bg-stone-200 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  @click="save"
+                  class="flex-1 py-3 bg-stone-800 text-white rounded-xl font-bold shadow-lg shadow-stone-200 hover:bg-stone-700 transition-colors"
+                >
+                  {{ isNewProfile ? '新增' : '儲存/更新' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Teleport>
+    </script>
+
+    <script type="text/x-template" id="app-template">
+      <div
+        id="app"
+        class="max-w-md mx-auto h-screen bg-stone-50 shadow-2xl relative flex flex-col overflow-hidden ring-1 ring-stone-900/5"
+      >
+        <main id="main-content" class="flex-1 overflow-y-auto scrollbar-hide relative z-0">
+          <StampView
+            v-if="activeTab === 'stamp'"
+            :searchName="searchName"
+            :childrenList="childrenList"
+            :transactions="transactions"
+            :stampAnimation="stampAnimation"
+            @update:searchName="searchName = $event"
+            @update:stampAnimation="stampAnimation = $event"
+            @add-transaction="addTransaction"
+          />
+          <SummaryView
+            v-else-if="activeTab === 'summary'"
+            :transactions="transactions"
+            :childrenList="childrenList"
+            :isLoading="isLoading"
+            @select-user="selectUser"
+            @redeem="showRedeemModal"
+            @edit-profile="showEditProfileModal"
+            @add-new-profile="showAddProfileModal"
+          />
+        </main>
+
+        <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-xl border-t border-stone-100 px-6 py-3 flex justify-evenly items-center z-50 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
+          <button
+            v-for="tab in tabs"
+            :key="tab.id"
+            @click="switchTab(tab.id)"
+            :class="[
+              'flex flex-col items-center gap-1.5 transition-all p-2 rounded-xl',
+              activeTab === tab.id
+                ? 'text-stone-800 bg-stone-100'
+                : 'text-stone-500 hover:text-stone-600',
+            ]"
+          >
+            <i :class="['fa-solid', 'fa-' + tab.icon]" style="font-size: 24px;"></i>
+            <span class="text-[10px] font-bold tracking-widest">{{ tab.label }}</span>
+          </button>
+        </nav>
+
+        <Teleport to="body">
+          <div
+            v-if="stampAnimation === 'done'"
+            class="fixed inset-0 z-[60] flex items-center justify-center"
+          >
+            <div class="bg-white/95 backdrop-blur-sm px-10 py-8 rounded-[2rem] shadow-2xl animate-popup flex flex-col items-center border border-stone-100">
+              <div class="mb-4 rotate-[-12deg]">
+                <i class="fa-solid fa-stamp" style="font-size: 64px;"></i>
+              </div>
+              <p class="text-stone-800 text-lg font-bold tracking-wide">集點成功！</p>
+            </div>
+          </div>
+        </Teleport>
+
+        <RedeemModal
+          :visible="redeemModal.visible"
+          :name="redeemModal.name"
+          :currentPoints="redeemModal.currentPoints"
+          @close="closeRedeemModal"
+          @confirm="confirmRedeem"
+        />
+
+        <EditProfileModal
+          :visible="editProfileModal.visible"
+          :profileName="editProfileModal.profileName"
+          :childrenList="childrenList"
+          @close="closeEditProfileModal"
+          @save="saveProfile"
+        />
+
+        <Teleport to="body">
+          <div
+            v-if="successModal.visible"
+            class="fixed inset-0 z-[80] flex items-center justify-center"
+          >
+            <div class="bg-white/95 backdrop-blur-sm px-10 py-8 rounded-[2rem] shadow-2xl animate-popup flex flex-col items-center border border-stone-100">
+              <div class="mb-4 text-emerald-500">
+                <i class="fa-solid fa-circle-check" style="font-size: 64px;"></i>
+              </div>
+              <p class="text-stone-800 text-lg font-bold tracking-wide">{{ successModal.message }}</p>
+            </div>
+          </div>
+        </Teleport>
+      </div>
+    </script>
+
+    <!-- JavaScript -->
+    <script type="module" src="./app.js?v=2"></script>
+  </body>
+</html>
