@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>集點趣</title>
+    <meta name="description" content="兒童集點卡：多主題、自訂背景與印章，使用 Firebase Firestore 即時同步。" />
+    <meta name="theme-color" content="#fafaf9" />
 
     <!-- Favicon -->
     <link
@@ -12,10 +14,15 @@
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%23475569' d='M312 201.8c0-17.4 9.2-33.2 19.9-47C344.5 138.5 352 118.1 352 96c0-53-43-96-96-96s-96 43-96 96c0 22.1 7.5 42.5 20.1 58.8c10.7 13.8 19.9 29.6 19.9 47c0 29.9-24.3 54.2-54.2 54.2H112C50.1 256 0 306.1 0 368c0 20.9 13.4 38.7 32 45.3V464c0 26.5 21.5 48 48 48H432c26.5 0 48-21.5 48-48V413.3c18.6-6.6 32-24.4 32-45.3c0-61.9-50.1-112-112-112H366.2c-29.9 0-54.2-24.3-54.2-54.2zM416 416H96V400H416v16z'/%3E%3C/svg%3E"
     />
 
+    <!-- Connection hints -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin />
+    <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin />
+    <link rel="preconnect" href="https://unpkg.com" crossorigin />
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Vue.js 3 -->
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 
     <!-- Firebase Configuration -->
     <script type="module" src="./firebase-config.js?v=2"></script>
@@ -245,7 +252,13 @@
           >
             <div class="flex items-center gap-4 cursor-pointer" @click="$emit('select-user', item.name)">
               <div :class="'w-12 h-12 rounded-2xl flex items-center justify-center text-white text-lg font-bold shadow-md ' + item.theme.bg">
-                <img v-if="item.bgUrl" :src="item.bgUrl" class="w-full h-full object-cover rounded-2xl" />
+                <img
+                  v-if="item.bgUrl"
+                  :src="item.bgUrl"
+                  class="w-full h-full object-cover rounded-2xl"
+                  :alt="item.name + ' 背景'"
+                  decoding="async"
+                />
                 <template v-else>{{ item.name.charAt(0) }}</template>
               </div>
               <div>
@@ -381,7 +394,7 @@
                   </label>
                 </div>
                 <div v-if="formState.bgUrl" class="mt-2 relative rounded-xl overflow-hidden">
-                  <img :src="formState.bgUrl" class="w-full h-32 object-cover rounded-xl" />
+                  <img :src="formState.bgUrl" class="w-full h-32 object-cover rounded-xl" alt="背景預覽" decoding="async" />
                   <button
                     type="button"
                     @click="formState.bgUrl = ''"
@@ -425,7 +438,7 @@
                 </div>
                 <div v-if="formState.stamp && formState.stamp.startsWith('data:')" class="mt-2 flex justify-center">
                   <div class="relative w-20 h-20 rounded-xl overflow-hidden bg-stone-100">
-                    <img :src="formState.stamp" class="w-full h-full object-contain" />
+                    <img :src="formState.stamp" class="w-full h-full object-contain" alt="印章預覽" decoding="async" />
                     <button
                       type="button"
                       @click="formState.stamp = ''"
@@ -482,7 +495,6 @@
 
     <script type="text/x-template" id="app-template">
       <div
-        id="app"
         class="max-w-md mx-auto h-screen bg-stone-50 shadow-2xl relative flex flex-col overflow-hidden ring-1 ring-stone-900/5"
       >
         <main id="main-content" class="flex-1 overflow-y-auto scrollbar-hide relative z-0">
@@ -572,6 +584,8 @@
     </script>
 
     <!-- JavaScript -->
+    <!-- Vue.js 3 (load near end to reduce head blocking; must be before app.js) -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script type="module" src="./app.js?v=2"></script>
   </body>
 </html>

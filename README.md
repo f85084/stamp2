@@ -48,6 +48,12 @@ cp firebase-config.example.js firebase-config.js
 ### 4. 部署
 
 ```bash
+git add .
+git commit -m "你的訊息"
+git push
+```
+
+```bash
 firebase deploy
 ```
 
