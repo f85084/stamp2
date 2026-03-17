@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
+    <title>集點趣 - 集點狀況</title>
+    <meta name="description" content="集點狀況頁面" />
+
+    <script src="./localvendor/tailwind/index.global.js"></script>
+    <script type="module" src="./firebase-config.js?v=2"></script>
+    <link rel="stylesheet" href="./localvendor/fontawesome/css/all.min.css" />
+    <link
+      rel="stylesheet"
+      href="./localvendor/fonts/noto-sans-tc/chinese-traditional-400.css"
+    />
+    <link
+      rel="stylesheet"
+      href="./localvendor/fonts/noto-sans-tc/chinese-traditional-500.css"
+    />
+    <link
+      rel="stylesheet"
+      href="./localvendor/fonts/noto-sans-tc/chinese-traditional-700.css"
+    />
+    <link
+      rel="stylesheet"
+      href="./localvendor/fonts/playfair-display/700.css"
+    />
+    <link rel="stylesheet" href="./shared.css?v=1" />
+
+    <style>
+      @keyframes pop {
+        0% {
+          transform: scale(0.8);
+          opacity: 0;
+        }
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+
+      .animate-pop {
+        animation: pop 0.2s ease-out;
+      }
+    </style>
+  </head>
+  <body class="bg-stone-50 min-h-screen">
+    <div id="app"></div>
+
+    <script src="./localvendor/vue/vue.global.js"></script>
+    <script type="module">
+      import {
+        CARD_THEMES,
+        COLLECTIONS,
+        convertImageToBase64,
+        ensureAdminVerified,
+        formatDate,
+        getTheme,
+        onFirebaseReady,
+      } from "./shared.js?v=1";
+
+      const { createApp, ref, reactive, computed, onMounted, onUnmounted } =
+        Vue;
+
+      createApp({
+        setup() {
+          const childrenList = ref([]);
+          const pointsByName = ref({});
+          const isLoading = ref(true);
+
+          const redeemModal = reactive({
+            visible: false,
+            name: "",
+            currentPoints: 0,
+            redeemCount: 10,
+          });
+
+          const editModal = reactive({
+            visible: false,
+            isNew: true,
+            profileId: null,
+            formState: {
+              name: "",
+              theme: "matcha",
+              bgUrl: "",
+              stamp: "",
+            },
+            uploadingBg: false,
+            uploadingStamp: false,
+          });
+
+          const successModal = reactive({ visible: false, message: "" });
+
+          const summary = computed(() => {
+            return childrenList.value
+              .map((child) => ({
+                id: child.id,
+                name: child.name,
+                total: pointsByName.value[child.name] || 0,
+                theme: getTheme(child.theme),
+                bgUrl: child.bgUrl || "",
+              }))
+              .sort((a, b) => b.total - a.total);
+          });
+
+          let unsubProfiles = null;
+
+          const loadTotalsForProfiles = async (profiles) => {
+            const { collection, query, where, getDocs } =
+              window.firebaseModules;
+            const nextMap = {};
+
+            await Promise.all(
+              profiles.map(async (profile) => {
+                try {
+                  const q = query(
+                    collection(window.db, COLLECTIONS.transactions),
+                    where("name", "==", profile.name),
+                  );
+                  const txSnap = await getDocs(q);
+                  nextMap[profile.name] = txSnap.docs.reduce((total, doc) => {
+                    const pointValue = Number(doc.data().points || 0);
+                    return total + pointValue;
+                  }, 0);
+                } catch {
+                  nextMap[profile.name] = 0;
+                }
+              }),
+            );
+
+            pointsByName.value = nextMap;
+          };
+
+          const loadData = () => {
+            const { collection, onSnapshot } = window.firebaseModules;
+
+            unsubProfiles = onSnapshot(
+              collection(window.db, COLLECTIONS.profiles),
+              async (snap) => {
+                const profiles = snap.docs.map((doc) => ({
+                  id: doc.id,
+                  ...doc.data(),
+                }));
+                childrenList.value = profiles;
+                await loadTotalsForProfiles(profiles);
+                isLoading.value = false;
+              },
+            );
+          };
+
+          const showSuccessModal = (message) => {
+            successModal.message = message;
+            successModal.visible = true;
+            setTimeout(() => {
+              successModal.visible = false;
+            }, 1200);
+          };
+
+          const selectUser = (name) => {
+            window.location.href = `./stamp.html?name=${encodeURIComponent(name)}`;
+          };
+
+          const showRedeemModal = (name, currentPoints) => {
+            redeemModal.name = name;
+            redeemModal.currentPoints = currentPoints;
+            redeemModal.redeemCount = Math.min(
+              10,
+              Math.max(1, currentPoints || 1),
+            );
+            redeemModal.visible = true;
+          };
+
+          const confirmRedeem = async () => {
+            if (redeemModal.redeemCount > redeemModal.currentPoints) {
+              alert(`點數不足 (擁有 ${redeemModal.currentPoints})`);
+              return;
+            }
+
+            if (redeemModal.redeemCount < 1) {
+              alert("數值錯誤");
+              return;
+            }
+
+            if (!ensureAdminVerified("管理員密碼")) return;
+
+            try {
+              const { addDoc, collection } = window.firebaseModules;
+              await addDoc(collection(window.db, COLLECTIONS.transactions), {
+                name: redeemModal.name,
+                points: -redeemModal.redeemCount,
+                type: "redeem",
+                timestamp: formatDate(new Date()),
+                createdAt: new Date(),
+              });
+
+              redeemModal.visible = false;
+              pointsByName.value = {
+                ...pointsByName.value,
+                [redeemModal.name]:
+                  (pointsByName.value[redeemModal.name] || 0) -
+                  redeemModal.redeemCount,
+              };
+              showSuccessModal(`成功兌換 ${redeemModal.redeemCount} 點`);
+            } catch (error) {
+              alert("兌換失敗: " + error.message);
+            }
+          };
+
+          const openEditModal = (profileName) => {
+            if (!profileName) {
+              editModal.isNew = true;
+              editModal.profileId = null;
+              editModal.formState = {
+                name: "",
+                theme: "matcha",
+                bgUrl: "",
+                stamp: "",
+              };
+            } else {
+              const profile = childrenList.value.find(
+                (c) => c.name === profileName,
+              );
+              if (!profile) return;
+              editModal.isNew = false;
+              editModal.profileId = profile.id;
+              editModal.formState = {
+                name: profile.name,
+                theme: profile.theme || "matcha",
+                bgUrl: profile.bgUrl || "",
+                stamp: profile.stamp || "",
+              };
+            }
+            editModal.visible = true;
+          };
+
+          const handleUpload = async (event, type) => {
+            const file = event.target.files?.[0];
+            if (!file || !file.type.startsWith("image/")) {
+              alert("請選擇圖片");
+              return;
+            }
+
+            const maxSize = 0.7;
+            if (file.size > maxSize * 1024 * 1024) {
+              alert(
+                `圖片過大 (上限 ${maxSize * 1000}KB) 因為已關閉 Storage，圖片需存入資料庫`,
+              );
+              return;
+            }
+
+            const loadingField =
+              type === "bg" ? "uploadingBg" : "uploadingStamp";
+            const valueField = type === "bg" ? "bgUrl" : "stamp";
+
+            editModal[loadingField] = true;
+            try {
+              editModal.formState[valueField] =
+                await convertImageToBase64(file);
+            } catch (error) {
+              alert("上傳失敗: " + error.message);
+            } finally {
+              editModal[loadingField] = false;
+              event.target.value = "";
+            }
+          };
+
+          const saveProfile = async () => {
+            const payload = editModal.formState;
+            if (!payload.name.trim()) {
+              alert("請輸入姓名");
+              return;
+            }
+
+            try {
+              const { collection, addDoc, doc, updateDoc } =
+                window.firebaseModules;
+              if (editModal.profileId) {
+                await updateDoc(
+                  doc(window.db, COLLECTIONS.profiles, editModal.profileId),
+                  {
+                    name: payload.name,
+                    theme: payload.theme || "matcha",
+                    bgUrl: payload.bgUrl || "",
+                    stamp: payload.stamp || "",
+                    updatedAt: new Date(),
+                  },
+                );
+              } else {
+                await addDoc(collection(window.db, COLLECTIONS.profiles), {
+                  name: payload.name,
+                  theme: payload.theme || "matcha",
+                  bgUrl: payload.bgUrl || "",
+                  stamp: payload.stamp || "",
+                  createdAt: new Date(),
+                });
+              }
+
+              editModal.visible = false;
+              showSuccessModal("儲存成功");
+            } catch (error) {
+              alert("儲存失敗: " + error.message);
+            }
+          };
+
+          onMounted(() => {
+            onFirebaseReady(loadData);
+          });
+
+          onUnmounted(() => {
+            if (unsubProfiles) unsubProfiles();
+          });
+
+          return {
+            CARD_THEMES,
+            summary,
+            isLoading,
+            redeemModal,
+            editModal,
+            successModal,
+            selectUser,
+            showRedeemModal,
+            confirmRedeem,
+            openEditModal,
+            saveProfile,
+            handleUpload,
+          };
+        },
+        template: `
+          <div class="max-w-md mx-auto h-screen bg-stone-50 shadow-2xl relative flex flex-col overflow-hidden ring-1 ring-stone-900/5">
+            <main class="flex-1 overflow-y-auto px-6 pt-6 pb-24">
+              <div class="flex justify-between items-center mb-6">
+                <h1 class="text-2xl font-serif text-stone-800">集點狀況</h1>
+                <button @click="openEditModal('')" class="px-4 py-2 bg-emerald-500 text-white rounded-full shadow-sm hover:bg-emerald-600 transition-all text-xs font-bold">
+                  <i class="fa-solid fa-plus"></i> 新增名單
+                </button>
+              </div>
+
+              <div v-if="isLoading" class="flex justify-center py-10">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+              </div>
+
+              <div v-else class="space-y-3">
+                <div v-for="item in summary" :key="item.name" class="bg-white p-4 rounded-2xl shadow-sm border border-stone-100 flex items-center justify-between">
+                  <div class="flex items-center gap-4 cursor-pointer" @click="selectUser(item.name)">
+                    <div :class="'w-12 h-12 rounded-2xl flex items-center justify-center text-white text-lg font-bold shadow-md ' + item.theme.bg">
+                      <img v-if="item.bgUrl" :src="item.bgUrl" class="w-full h-full object-cover rounded-2xl" :alt="item.name + ' 背景'" />
+                      <template v-else>{{ item.name.charAt(0) }}</template>
+                    </div>
+                    <div>
+                      <h3 class="font-bold text-stone-700 text-lg">{{ item.name }}</h3>
+                      <p class="text-xs text-stone-500">
+                        總點數:
+                        <span class="text-stone-600 font-mono text-sm font-bold">{{ item.total }}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <div class="flex gap-2 items-center">
+                    <button @click="openEditModal(item.name)" class="p-2 text-stone-500 hover:text-stone-700">
+                      <i class="fa-solid fa-gear"></i>
+                    </button>
+                    <button @click="showRedeemModal(item.name, item.total)" class="px-4 py-2 bg-rose-50 text-rose-500 hover:bg-rose-100 rounded-xl text-xs font-bold border border-rose-100">
+                      兌換
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </main>
+
+            <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-xl border-t border-stone-100 px-6 py-3 flex justify-evenly items-center z-50 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
+              <a href="./stamp.html" class="flex flex-col items-center gap-1.5 p-2 rounded-xl text-stone-500 hover:text-stone-600">
+                <i class="fa-solid fa-stamp" style="font-size: 24px;"></i>
+                <span class="text-[10px] font-bold tracking-widest">集點卡</span>
+              </a>
+              <a href="./summary.html" class="flex flex-col items-center gap-1.5 p-2 rounded-xl text-stone-800 bg-stone-100">
+                <i class="fa-solid fa-chart-simple" style="font-size: 24px;"></i>
+                <span class="text-[10px] font-bold tracking-widest">狀況</span>
+              </a>
+            </nav>
+
+            <div v-if="redeemModal.visible" class="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 backdrop-blur-sm" @click.self="redeemModal.visible = false">
+              <div class="bg-white rounded-2xl w-full max-w-xs p-6 animate-pop shadow-2xl mx-4">
+                <h3 class="text-lg font-bold text-center mb-4">兌換扣點 ({{ redeemModal.name }})</h3>
+                <p class="text-center text-stone-500 text-sm mb-6">目前點數: {{ redeemModal.currentPoints }}</p>
+                <div class="flex items-center justify-center space-x-4 mb-8">
+                  <button @click="redeemModal.redeemCount = Math.max(1, redeemModal.redeemCount - 1)" class="w-10 h-10 rounded-full bg-stone-100 text-xl font-bold">-</button>
+                  <input v-model.number="redeemModal.redeemCount" type="number" :min="1" :max="redeemModal.currentPoints" class="w-16 text-center text-xl font-bold outline-none border-b-2 border-emerald-200" />
+                  <button @click="redeemModal.redeemCount = Math.min(redeemModal.currentPoints, redeemModal.redeemCount + 1)" class="w-10 h-10 rounded-full bg-stone-100 text-xl font-bold">+</button>
+                </div>
+                <div class="flex space-x-3">
+                  <button @click="redeemModal.visible = false" class="flex-1 py-3 bg-stone-100 rounded-xl font-bold text-stone-500">取消</button>
+                  <button @click="confirmRedeem" class="flex-1 py-3 bg-emerald-500 text-white rounded-xl font-bold">確認扣點</button>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="editModal.visible" class="fixed inset-0 z-[75] flex items-center justify-center bg-black/30 backdrop-blur-sm" @click.self="editModal.visible = false">
+              <div class="bg-white rounded-2xl w-full max-w-md p-6 animate-pop shadow-2xl mx-4 max-h-[90vh] overflow-y-auto">
+                <h3 class="text-lg font-bold text-center mb-6">{{ editModal.isNew ? '新增名單' : '編輯名單' }}</h3>
+                <div class="space-y-6">
+                  <div class="space-y-2">
+                    <label class="text-xs font-bold text-stone-500 tracking-wider">姓名</label>
+                    <input v-model="editModal.formState.name" type="text" class="block w-full p-4 bg-stone-50 rounded-2xl text-lg text-stone-800" placeholder="例如: Anna" />
+                  </div>
+
+                  <div class="space-y-2">
+                    <label class="text-xs font-bold text-stone-500 tracking-wider">背景圖片</label>
+                    <div class="flex gap-2">
+                      <input v-model="editModal.formState.bgUrl" type="text" class="flex-1 p-3 bg-stone-50 rounded-2xl text-sm text-stone-600" placeholder="https://... 或點擊上傳圖片" readonly />
+                      <label class="px-4 py-3 bg-emerald-500 text-white rounded-xl font-bold cursor-pointer">
+                        <input type="file" class="hidden" accept="image/*" @change="(e) => handleUpload(e, 'bg')" />
+                        <i v-if="editModal.uploadingBg" class="fa-solid fa-spinner fa-spin"></i>
+                        <span v-else>上傳</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="space-y-2">
+                    <label class="text-xs font-bold text-stone-500 tracking-wider">自訂印章</label>
+                    <div class="flex gap-2">
+                      <input v-model="editModal.formState.stamp" type="text" class="flex-1 p-3 bg-stone-50 rounded-2xl text-sm text-stone-600" placeholder="🐻 或 https://..." />
+                      <label class="px-4 py-3 bg-emerald-500 text-white rounded-xl font-bold cursor-pointer">
+                        <input type="file" class="hidden" accept="image/*" @change="(e) => handleUpload(e, 'stamp')" />
+                        <i v-if="editModal.uploadingStamp" class="fa-solid fa-spinner fa-spin"></i>
+                        <span v-else>上傳</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="space-y-3">
+                    <label class="text-xs font-bold text-stone-500 tracking-wider">風格</label>
+                    <div class="grid grid-cols-6 gap-2">
+                      <button
+                        v-for="[key, theme] in Object.entries(CARD_THEMES).filter(([k]) => k !== 'default')"
+                        :key="key"
+                        type="button"
+                        @click="editModal.formState.theme = key"
+                        :class="[
+                          'aspect-square rounded-xl flex flex-col items-center justify-center gap-1 border-2 transition-all',
+                          editModal.formState.theme === key
+                            ? 'border-stone-800 bg-stone-50 scale-105'
+                            : 'border-transparent hover:bg-stone-50'
+                        ]"
+                      >
+                        <div :class="'w-5 h-5 rounded-full ' + theme.bg"></div>
+                        <span class="text-[9px] text-stone-500">{{ theme.name }}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="flex space-x-3">
+                    <button @click="editModal.visible = false" class="flex-1 py-3 bg-stone-100 rounded-xl font-bold text-stone-500">取消</button>
+                    <button @click="saveProfile" class="flex-1 py-3 bg-stone-800 text-white rounded-xl font-bold">{{ editModal.isNew ? '新增' : '儲存/更新' }}</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="successModal.visible" class="fixed inset-0 z-[80] flex items-center justify-center">
+              <div class="bg-white/95 backdrop-blur-sm px-10 py-8 rounded-[2rem] shadow-2xl animate-popup flex flex-col items-center border border-stone-100">
+                <div class="mb-4 text-emerald-500"><i class="fa-solid fa-circle-check" style="font-size: 64px;"></i></div>
+                <p class="text-stone-800 text-lg font-bold tracking-wide">{{ successModal.message }}</p>
+              </div>
+            </div>
+          </div>
+        `,
+      }).mount("#app");
+    </script>
+  </body>
+</html>
