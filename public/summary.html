@@ -48,6 +48,293 @@
   <body class="bg-stone-50 min-h-screen">
     <div id="app"></div>
 
+    <template id="summary-template">
+      <div
+        class="max-w-md mx-auto h-screen bg-stone-50 shadow-2xl relative flex flex-col overflow-hidden ring-1 ring-stone-900/5"
+      >
+        <main class="flex-1 overflow-y-auto px-6 pt-6 pb-24">
+          <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-serif text-stone-800">集點狀況</h1>
+            <button
+              @click="openEditModal('')"
+              class="px-4 py-2 bg-emerald-500 text-white rounded-full shadow-sm hover:bg-emerald-600 transition-all text-xs font-bold"
+            >
+              <i class="fa-solid fa-plus"></i> 新增名單
+            </button>
+          </div>
+
+          <div v-if="isLoading" class="flex justify-center py-10">
+            <div
+              class="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"
+            ></div>
+          </div>
+
+          <div v-else class="space-y-3">
+            <div
+              v-for="item in summary"
+              :key="item.name"
+              class="bg-white p-4 rounded-2xl shadow-sm border border-stone-100 flex items-center justify-between"
+            >
+              <div
+                class="flex items-center gap-4 cursor-pointer"
+                @click="selectUser(item.name)"
+              >
+                <div
+                  :class="'w-12 h-12 rounded-2xl flex items-center justify-center text-white text-lg font-bold shadow-md ' + item.theme.bg"
+                >
+                  <img
+                    v-if="item.bgUrl"
+                    :src="item.bgUrl"
+                    class="w-full h-full object-cover rounded-2xl"
+                    :alt="item.name + ' 背景'"
+                  />
+                  <template v-else>{{ item.name.charAt(0) }}</template>
+                </div>
+                <div>
+                  <h3 class="font-bold text-stone-700 text-lg">
+                    {{ item.name }}
+                  </h3>
+                  <p class="text-xs text-stone-500">
+                    總點數:
+                    <span class="text-stone-600 font-mono text-sm font-bold"
+                      >{{ item.total }}</span
+                    >
+                  </p>
+                </div>
+              </div>
+              <div class="flex gap-2 items-center">
+                <button
+                  @click="openEditModal(item.name)"
+                  class="p-2 text-stone-500 hover:text-stone-700"
+                >
+                  <i class="fa-solid fa-gear"></i>
+                </button>
+                <button
+                  @click="showRedeemModal(item.name, item.total)"
+                  class="px-4 py-2 bg-rose-50 text-rose-500 hover:bg-rose-100 rounded-xl text-xs font-bold border border-rose-100"
+                >
+                  兌換
+                </button>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        <nav
+          class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-xl border-t border-stone-100 px-6 py-3 flex justify-evenly items-center z-50 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]"
+        >
+          <a
+            href="./stamp.html"
+            class="flex flex-col items-center gap-1.5 p-2 rounded-xl text-stone-500 hover:text-stone-600"
+          >
+            <i class="fa-solid fa-stamp" style="font-size: 24px"></i>
+            <span class="text-[10px] font-bold tracking-widest">集點卡</span>
+          </a>
+          <a
+            href="./summary.html"
+            class="flex flex-col items-center gap-1.5 p-2 rounded-xl text-stone-800 bg-stone-100"
+          >
+            <i class="fa-solid fa-chart-simple" style="font-size: 24px"></i>
+            <span class="text-[10px] font-bold tracking-widest">狀況</span>
+          </a>
+        </nav>
+
+        <div
+          v-if="redeemModal.visible"
+          class="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 backdrop-blur-sm"
+          @click.self="redeemModal.visible = false"
+        >
+          <div
+            class="bg-white rounded-2xl w-full max-w-xs p-6 animate-pop shadow-2xl mx-4"
+          >
+            <h3 class="text-lg font-bold text-center mb-4">
+              兌換扣點 ({{ redeemModal.name }})
+            </h3>
+            <p class="text-center text-stone-500 text-sm mb-6">
+              目前點數: {{ redeemModal.currentPoints }}
+            </p>
+            <div class="flex items-center justify-center space-x-4 mb-8">
+              <button
+                @click="redeemModal.redeemCount = Math.max(1, redeemModal.redeemCount - 1)"
+                class="w-10 h-10 rounded-full bg-stone-100 text-xl font-bold"
+              >
+                -
+              </button>
+              <input
+                v-model.number="redeemModal.redeemCount"
+                type="number"
+                :min="1"
+                :max="redeemModal.currentPoints"
+                class="w-16 text-center text-xl font-bold outline-none border-b-2 border-emerald-200"
+              />
+              <button
+                @click="redeemModal.redeemCount = Math.min(redeemModal.currentPoints, redeemModal.redeemCount + 1)"
+                class="w-10 h-10 rounded-full bg-stone-100 text-xl font-bold"
+              >
+                +
+              </button>
+            </div>
+            <div class="flex space-x-3">
+              <button
+                @click="redeemModal.visible = false"
+                class="flex-1 py-3 bg-stone-100 rounded-xl font-bold text-stone-500"
+              >
+                取消
+              </button>
+              <button
+                @click="confirmRedeem"
+                class="flex-1 py-3 bg-emerald-500 text-white rounded-xl font-bold"
+              >
+                確認扣點
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-if="editModal.visible"
+          class="fixed inset-0 z-[75] flex items-center justify-center bg-black/30 backdrop-blur-sm"
+          @click.self="editModal.visible = false"
+        >
+          <div
+            class="bg-white rounded-2xl w-full max-w-md p-6 animate-pop shadow-2xl mx-4 max-h-[90vh] overflow-y-auto"
+          >
+            <h3 class="text-lg font-bold text-center mb-6">
+              {{ editModal.isNew ? '新增名單' : '編輯名單' }}
+            </h3>
+            <div class="space-y-6">
+              <div class="space-y-2">
+                <label class="text-xs font-bold text-stone-500 tracking-wider"
+                  >姓名</label
+                >
+                <input
+                  v-model="editModal.formState.name"
+                  type="text"
+                  class="block w-full p-4 bg-stone-50 rounded-2xl text-lg text-stone-800"
+                  placeholder="例如: Anna"
+                />
+              </div>
+
+              <div class="space-y-2">
+                <label class="text-xs font-bold text-stone-500 tracking-wider"
+                  >背景圖片</label
+                >
+                <div class="flex gap-2">
+                  <input
+                    v-model="editModal.formState.bgUrl"
+                    type="text"
+                    class="flex-1 p-3 bg-stone-50 rounded-2xl text-sm text-stone-600"
+                    placeholder="https://... 或點擊上傳圖片"
+                    readonly
+                  />
+                  <label
+                    class="px-4 py-3 bg-emerald-500 text-white rounded-xl font-bold cursor-pointer"
+                  >
+                    <input
+                      type="file"
+                      class="hidden"
+                      accept="image/*"
+                      @change="(e) => handleUpload(e, 'bg')"
+                    />
+                    <i
+                      v-if="editModal.uploadingBg"
+                      class="fa-solid fa-spinner fa-spin"
+                    ></i>
+                    <span v-else>上傳</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="space-y-2">
+                <label class="text-xs font-bold text-stone-500 tracking-wider"
+                  >自訂印章</label
+                >
+                <div class="flex gap-2">
+                  <input
+                    v-model="editModal.formState.stamp"
+                    type="text"
+                    class="flex-1 p-3 bg-stone-50 rounded-2xl text-sm text-stone-600"
+                    placeholder="🐻 或 https://..."
+                  />
+                  <label
+                    class="px-4 py-3 bg-emerald-500 text-white rounded-xl font-bold cursor-pointer"
+                  >
+                    <input
+                      type="file"
+                      class="hidden"
+                      accept="image/*"
+                      @change="(e) => handleUpload(e, 'stamp')"
+                    />
+                    <i
+                      v-if="editModal.uploadingStamp"
+                      class="fa-solid fa-spinner fa-spin"
+                    ></i>
+                    <span v-else>上傳</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="space-y-3">
+                <label class="text-xs font-bold text-stone-500 tracking-wider"
+                  >風格</label
+                >
+                <div class="grid grid-cols-6 gap-2">
+                  <button
+                    v-for="[key, theme] in Object.entries(CARD_THEMES).filter(([k]) => k !== 'default')"
+                    :key="key"
+                    type="button"
+                    @click="editModal.formState.theme = key"
+                    :class="[
+                      'aspect-square rounded-xl flex flex-col items-center justify-center gap-1 border-2 transition-all',
+                      editModal.formState.theme === key
+                        ? 'border-stone-800 bg-stone-50 scale-105'
+                        : 'border-transparent hover:bg-stone-50'
+                    ]"
+                  >
+                    <div :class="'w-5 h-5 rounded-full ' + theme.bg"></div>
+                    <span class="text-[9px] text-stone-500"
+                      >{{ theme.name }}</span
+                    >
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex space-x-3">
+                <button
+                  @click="editModal.visible = false"
+                  class="flex-1 py-3 bg-stone-100 rounded-xl font-bold text-stone-500"
+                >
+                  取消
+                </button>
+                <button
+                  @click="saveProfile"
+                  class="flex-1 py-3 bg-stone-800 text-white rounded-xl font-bold"
+                >
+                  {{ editModal.isNew ? '新增' : '儲存/更新' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-if="successModal.visible"
+          class="fixed inset-0 z-[80] flex items-center justify-center"
+        >
+          <div
+            class="bg-white/95 backdrop-blur-sm px-10 py-8 rounded-[2rem] shadow-2xl animate-popup flex flex-col items-center border border-stone-100"
+          >
+            <div class="mb-4 text-emerald-500">
+              <i class="fa-solid fa-circle-check" style="font-size: 64px"></i>
+            </div>
+            <p class="text-stone-800 text-lg font-bold tracking-wide">
+              {{ successModal.message }}
+            </p>
+          </div>
+        </div>
+      </div>
+    </template>
+
     <script src="./localvendor/vue/vue.global.js"></script>
     <script type="module">
       import {
@@ -326,144 +613,7 @@
             handleUpload,
           };
         },
-        template: `
-          <div class="max-w-md mx-auto h-screen bg-stone-50 shadow-2xl relative flex flex-col overflow-hidden ring-1 ring-stone-900/5">
-            <main class="flex-1 overflow-y-auto px-6 pt-6 pb-24">
-              <div class="flex justify-between items-center mb-6">
-                <h1 class="text-2xl font-serif text-stone-800">集點狀況</h1>
-                <button @click="openEditModal('')" class="px-4 py-2 bg-emerald-500 text-white rounded-full shadow-sm hover:bg-emerald-600 transition-all text-xs font-bold">
-                  <i class="fa-solid fa-plus"></i> 新增名單
-                </button>
-              </div>
-
-              <div v-if="isLoading" class="flex justify-center py-10">
-                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
-              </div>
-
-              <div v-else class="space-y-3">
-                <div v-for="item in summary" :key="item.name" class="bg-white p-4 rounded-2xl shadow-sm border border-stone-100 flex items-center justify-between">
-                  <div class="flex items-center gap-4 cursor-pointer" @click="selectUser(item.name)">
-                    <div :class="'w-12 h-12 rounded-2xl flex items-center justify-center text-white text-lg font-bold shadow-md ' + item.theme.bg">
-                      <img v-if="item.bgUrl" :src="item.bgUrl" class="w-full h-full object-cover rounded-2xl" :alt="item.name + ' 背景'" />
-                      <template v-else>{{ item.name.charAt(0) }}</template>
-                    </div>
-                    <div>
-                      <h3 class="font-bold text-stone-700 text-lg">{{ item.name }}</h3>
-                      <p class="text-xs text-stone-500">
-                        總點數:
-                        <span class="text-stone-600 font-mono text-sm font-bold">{{ item.total }}</span>
-                      </p>
-                    </div>
-                  </div>
-                  <div class="flex gap-2 items-center">
-                    <button @click="openEditModal(item.name)" class="p-2 text-stone-500 hover:text-stone-700">
-                      <i class="fa-solid fa-gear"></i>
-                    </button>
-                    <button @click="showRedeemModal(item.name, item.total)" class="px-4 py-2 bg-rose-50 text-rose-500 hover:bg-rose-100 rounded-xl text-xs font-bold border border-rose-100">
-                      兌換
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </main>
-
-            <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-xl border-t border-stone-100 px-6 py-3 flex justify-evenly items-center z-50 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
-              <a href="./stamp.html" class="flex flex-col items-center gap-1.5 p-2 rounded-xl text-stone-500 hover:text-stone-600">
-                <i class="fa-solid fa-stamp" style="font-size: 24px;"></i>
-                <span class="text-[10px] font-bold tracking-widest">集點卡</span>
-              </a>
-              <a href="./summary.html" class="flex flex-col items-center gap-1.5 p-2 rounded-xl text-stone-800 bg-stone-100">
-                <i class="fa-solid fa-chart-simple" style="font-size: 24px;"></i>
-                <span class="text-[10px] font-bold tracking-widest">狀況</span>
-              </a>
-            </nav>
-
-            <div v-if="redeemModal.visible" class="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 backdrop-blur-sm" @click.self="redeemModal.visible = false">
-              <div class="bg-white rounded-2xl w-full max-w-xs p-6 animate-pop shadow-2xl mx-4">
-                <h3 class="text-lg font-bold text-center mb-4">兌換扣點 ({{ redeemModal.name }})</h3>
-                <p class="text-center text-stone-500 text-sm mb-6">目前點數: {{ redeemModal.currentPoints }}</p>
-                <div class="flex items-center justify-center space-x-4 mb-8">
-                  <button @click="redeemModal.redeemCount = Math.max(1, redeemModal.redeemCount - 1)" class="w-10 h-10 rounded-full bg-stone-100 text-xl font-bold">-</button>
-                  <input v-model.number="redeemModal.redeemCount" type="number" :min="1" :max="redeemModal.currentPoints" class="w-16 text-center text-xl font-bold outline-none border-b-2 border-emerald-200" />
-                  <button @click="redeemModal.redeemCount = Math.min(redeemModal.currentPoints, redeemModal.redeemCount + 1)" class="w-10 h-10 rounded-full bg-stone-100 text-xl font-bold">+</button>
-                </div>
-                <div class="flex space-x-3">
-                  <button @click="redeemModal.visible = false" class="flex-1 py-3 bg-stone-100 rounded-xl font-bold text-stone-500">取消</button>
-                  <button @click="confirmRedeem" class="flex-1 py-3 bg-emerald-500 text-white rounded-xl font-bold">確認扣點</button>
-                </div>
-              </div>
-            </div>
-
-            <div v-if="editModal.visible" class="fixed inset-0 z-[75] flex items-center justify-center bg-black/30 backdrop-blur-sm" @click.self="editModal.visible = false">
-              <div class="bg-white rounded-2xl w-full max-w-md p-6 animate-pop shadow-2xl mx-4 max-h-[90vh] overflow-y-auto">
-                <h3 class="text-lg font-bold text-center mb-6">{{ editModal.isNew ? '新增名單' : '編輯名單' }}</h3>
-                <div class="space-y-6">
-                  <div class="space-y-2">
-                    <label class="text-xs font-bold text-stone-500 tracking-wider">姓名</label>
-                    <input v-model="editModal.formState.name" type="text" class="block w-full p-4 bg-stone-50 rounded-2xl text-lg text-stone-800" placeholder="例如: Anna" />
-                  </div>
-
-                  <div class="space-y-2">
-                    <label class="text-xs font-bold text-stone-500 tracking-wider">背景圖片</label>
-                    <div class="flex gap-2">
-                      <input v-model="editModal.formState.bgUrl" type="text" class="flex-1 p-3 bg-stone-50 rounded-2xl text-sm text-stone-600" placeholder="https://... 或點擊上傳圖片" readonly />
-                      <label class="px-4 py-3 bg-emerald-500 text-white rounded-xl font-bold cursor-pointer">
-                        <input type="file" class="hidden" accept="image/*" @change="(e) => handleUpload(e, 'bg')" />
-                        <i v-if="editModal.uploadingBg" class="fa-solid fa-spinner fa-spin"></i>
-                        <span v-else>上傳</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  <div class="space-y-2">
-                    <label class="text-xs font-bold text-stone-500 tracking-wider">自訂印章</label>
-                    <div class="flex gap-2">
-                      <input v-model="editModal.formState.stamp" type="text" class="flex-1 p-3 bg-stone-50 rounded-2xl text-sm text-stone-600" placeholder="🐻 或 https://..." />
-                      <label class="px-4 py-3 bg-emerald-500 text-white rounded-xl font-bold cursor-pointer">
-                        <input type="file" class="hidden" accept="image/*" @change="(e) => handleUpload(e, 'stamp')" />
-                        <i v-if="editModal.uploadingStamp" class="fa-solid fa-spinner fa-spin"></i>
-                        <span v-else>上傳</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  <div class="space-y-3">
-                    <label class="text-xs font-bold text-stone-500 tracking-wider">風格</label>
-                    <div class="grid grid-cols-6 gap-2">
-                      <button
-                        v-for="[key, theme] in Object.entries(CARD_THEMES).filter(([k]) => k !== 'default')"
-                        :key="key"
-                        type="button"
-                        @click="editModal.formState.theme = key"
-                        :class="[
-                          'aspect-square rounded-xl flex flex-col items-center justify-center gap-1 border-2 transition-all',
-                          editModal.formState.theme === key
-                            ? 'border-stone-800 bg-stone-50 scale-105'
-                            : 'border-transparent hover:bg-stone-50'
-                        ]"
-                      >
-                        <div :class="'w-5 h-5 rounded-full ' + theme.bg"></div>
-                        <span class="text-[9px] text-stone-500">{{ theme.name }}</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div class="flex space-x-3">
-                    <button @click="editModal.visible = false" class="flex-1 py-3 bg-stone-100 rounded-xl font-bold text-stone-500">取消</button>
-                    <button @click="saveProfile" class="flex-1 py-3 bg-stone-800 text-white rounded-xl font-bold">{{ editModal.isNew ? '新增' : '儲存/更新' }}</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div v-if="successModal.visible" class="fixed inset-0 z-[80] flex items-center justify-center">
-              <div class="bg-white/95 backdrop-blur-sm px-10 py-8 rounded-[2rem] shadow-2xl animate-popup flex flex-col items-center border border-stone-100">
-                <div class="mb-4 text-emerald-500"><i class="fa-solid fa-circle-check" style="font-size: 64px;"></i></div>
-                <p class="text-stone-800 text-lg font-bold tracking-wide">{{ successModal.message }}</p>
-              </div>
-            </div>
-          </div>
-        `,
+        template: document.getElementById("summary-template").innerHTML,
       }).mount("#app");
     </script>
   </body>

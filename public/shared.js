@@ -1,3 +1,5 @@
+import { adminPassword } from "./config.js";
+
 export const COLLECTIONS = {
   transactions: "transactions",
   profiles: "profiles",
@@ -35,7 +37,7 @@ export function ensureAdminVerified(promptText = "請輸入管理員密碼：") 
   }
 
   const password = prompt(promptText);
-  if (password === "admin") {
+  if (password === adminPassword) {
     localStorage.setItem("admin-verified", "true");
     return true;
   }
