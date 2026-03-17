@@ -48,6 +48,10 @@ build/Release
 # Dependency directories
 node_modules/
 
+# Generated vendor directories
+public/vendor/
+public/localvendor/
+
 # Optional npm cache directory
 .npm
 
