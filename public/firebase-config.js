@@ -1,17 +1,20 @@
 // Import the functions you need from the SDKs you need
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { initializeApp } from "./localvendor/firebase/firebase-app.js";
 import {
   getFirestore,
   collection,
   addDoc,
   getDocs,
   query,
+  where,
   orderBy,
   onSnapshot,
+  getAggregateFromServer,
+  sum,
   doc,
   updateDoc,
   setDoc,
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+} from "./localvendor/firebase/firebase-firestore.js";
 import { firebaseConfig } from "./config.js";
 
 // Initialize Firebase
@@ -28,8 +31,11 @@ window.firebaseModules = {
   addDoc,
   getDocs,
   query,
+  where,
   orderBy,
   onSnapshot,
+  getAggregateFromServer,
+  sum,
   doc,
   updateDoc,
   setDoc,
