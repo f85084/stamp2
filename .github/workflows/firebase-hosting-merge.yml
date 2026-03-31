@@ -9,12 +9,13 @@ on:
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: npm ci
-      - uses: FirebaseExtended/action-hosting-deploy@v0
+      - uses: google-github-actions/auth@v2
         with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_STAMP_F8D15 }}
-          channelId: live
-          projectId: stamp-f8d15
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_STAMP_F8D15 }}
+      - run: npm install -g firebase-tools
+      - run: firebase deploy --only hosting --project stamp-f8d15 --non-interactive
