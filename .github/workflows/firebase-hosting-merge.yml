@@ -14,30 +14,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: npm ci
-      - name: Validate Firebase service account secret
-        env:
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_STAMP_F8D15 }}
-        run: |
-          if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
-            echo "::error::Missing repository secret FIREBASE_SERVICE_ACCOUNT_STAMP_F8D15"
-            exit 1
-          fi
-
-          python - <<'PY'
-          import json
-          import os
-
-          raw = os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON", "")
-          try:
-              data = json.loads(raw)
-          except Exception:
-              raise SystemExit("::error::FIREBASE_SERVICE_ACCOUNT_STAMP_F8D15 is not valid JSON")
-
-          required = {"type", "project_id", "private_key", "client_email"}
-          missing = sorted(k for k in required if not data.get(k))
-          if missing:
-              raise SystemExit("::error::FIREBASE service account JSON is missing keys: " + ", ".join(missing))
-          PY
       - uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_STAMP_F8D15 }}
