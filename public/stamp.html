@@ -429,13 +429,16 @@
             stampAnimation.value = "stamping";
             setTimeout(async () => {
               try {
-                const { addDoc, collection } = window.firebaseModules;
-                await addDoc(collection(window.db, COLLECTIONS.transactions), {
+                const { setDoc, doc, collection } = window.firebaseModules;
+                const now = new Date();
+                const pad = (n, l = 2) => String(n).padStart(l, "0");
+                const txId = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}-${pad(now.getMilliseconds(), 3)}-${searchName.value}`;
+                await setDoc(doc(window.db, COLLECTIONS.transactions, txId), {
                   name: searchName.value,
                   points: 1,
                   type: "add",
-                  timestamp: formatDate(new Date()),
-                  createdAt: new Date(),
+                  timestamp: formatDate(now),
+                  createdAt: now,
                 });
 
                 stampAnimation.value = "done";
