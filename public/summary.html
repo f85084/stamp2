@@ -183,9 +183,11 @@
               </button>
               <button
                 @click="confirmRedeem"
-                class="flex-1 py-3 bg-emerald-500 text-white rounded-xl font-bold"
+                :disabled="redeemModal.isSubmitting"
+                class="flex-1 py-3 bg-emerald-500 text-white rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                確認扣點
+                <i v-if="redeemModal.isSubmitting" class="fa-solid fa-spinner fa-spin mr-1"></i>
+                {{ redeemModal.isSubmitting ? '處理中...' : '確認扣點' }}
               </button>
             </div>
           </div>
@@ -308,9 +310,11 @@
                 </button>
                 <button
                   @click="saveProfile"
-                  class="flex-1 py-3 bg-stone-800 text-white rounded-xl font-bold"
+                  :disabled="isSaving"
+                  class="flex-1 py-3 bg-stone-800 text-white rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {{ editModal.isNew ? '新增' : '儲存/更新' }}
+                  <i v-if="isSaving" class="fa-solid fa-spinner fa-spin mr-1"></i>
+                  {{ isSaving ? '處理中...' : (editModal.isNew ? '新增' : '儲存/更新') }}
                 </button>
               </div>
             </div>
@@ -361,6 +365,7 @@
             name: "",
             currentPoints: 0,
             redeemCount: 10,
+            isSubmitting: false,
           });
 
           const editModal = reactive({
@@ -459,6 +464,8 @@
           };
 
           const confirmRedeem = async () => {
+            if (redeemModal.isSubmitting) return;
+
             if (redeemModal.redeemCount > redeemModal.currentPoints) {
               alert(`點數不足 (擁有 ${redeemModal.currentPoints})`);
               return;
@@ -471,6 +478,7 @@
 
             if (!ensureAdminVerified("管理員密碼")) return;
 
+            redeemModal.isSubmitting = true;
             try {
               const { addDoc, collection } = window.firebaseModules;
               await addDoc(collection(window.db, COLLECTIONS.transactions), {
@@ -491,6 +499,8 @@
               showSuccessModal(`成功兌換 ${redeemModal.redeemCount} 點`);
             } catch (error) {
               alert("兌換失敗: " + error.message);
+            } finally {
+              redeemModal.isSubmitting = false;
             }
           };
 
@@ -552,13 +562,18 @@
             }
           };
 
+          const isSaving = ref(false);
+
           const saveProfile = async () => {
+            if (isSaving.value) return;
+
             const payload = editModal.formState;
             if (!payload.name.trim()) {
               alert("請輸入姓名");
               return;
             }
 
+            isSaving.value = true;
             try {
               const { collection, addDoc, doc, updateDoc } =
                 window.firebaseModules;
@@ -587,6 +602,8 @@
               showSuccessModal("儲存成功");
             } catch (error) {
               alert("儲存失敗: " + error.message);
+            } finally {
+              isSaving.value = false;
             }
           };
 
@@ -605,6 +622,7 @@
             redeemModal,
             editModal,
             successModal,
+            isSaving,
             selectUser,
             showRedeemModal,
             confirmRedeem,
