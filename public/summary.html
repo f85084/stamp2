@@ -392,8 +392,13 @@
                 total: pointsByName.value[child.name] || 0,
                 theme: getTheme(child.theme),
                 bgUrl: child.bgUrl || "",
+                createdAt: child.createdAt,
               }))
-              .sort((a, b) => b.total - a.total);
+              .sort(
+                (a, b) =>
+                  (a.createdAt?.toMillis?.() || 0) -
+                  (b.createdAt?.toMillis?.() || 0),
+              );
           });
 
           let unsubProfiles = null;
