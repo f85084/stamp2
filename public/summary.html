@@ -399,15 +399,19 @@
               .map((child) => ({
                 id: child.id,
                 name: child.name,
-                total: isLoadingPoints.value ? null : (pointsByName.value[child.name] ?? 0),
+                total: isLoadingPoints.value
+                  ? null
+                  : (pointsByName.value[child.name] ?? 0),
                 theme: getTheme(child.theme),
                 bgUrl: child.bgUrl || "",
                 createdAt: child.createdAt,
               }))
               .sort(
                 (a, b) =>
-                  (a.createdAt?.toMillis?.() ?? (typeof a.createdAt === 'number' ? a.createdAt : 0)) -
-                  (b.createdAt?.toMillis?.() ?? (typeof b.createdAt === 'number' ? b.createdAt : 0)),
+                  (a.createdAt?.toMillis?.() ??
+                    (typeof a.createdAt === "number" ? a.createdAt : 0)) -
+                  (b.createdAt?.toMillis?.() ??
+                    (typeof b.createdAt === "number" ? b.createdAt : 0)),
               );
           });
 
@@ -585,7 +589,7 @@
 
           const isSaving = ref(false);
 
-          const CACHE_KEY = 'stamp_summary_cache';
+          const CACHE_KEY = "stamp_summary_cache";
 
           const tryLoadCache = () => {
             try {
