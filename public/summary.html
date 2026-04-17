@@ -186,7 +186,10 @@
                 :disabled="redeemModal.isSubmitting"
                 class="flex-1 py-3 bg-emerald-500 text-white rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <i v-if="redeemModal.isSubmitting" class="fa-solid fa-spinner fa-spin mr-1"></i>
+                <i
+                  v-if="redeemModal.isSubmitting"
+                  class="fa-solid fa-spinner fa-spin mr-1"
+                ></i>
                 {{ redeemModal.isSubmitting ? '處理中...' : '確認扣點' }}
               </button>
             </div>
@@ -313,8 +316,12 @@
                   :disabled="isSaving"
                   class="flex-1 py-3 bg-stone-800 text-white rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <i v-if="isSaving" class="fa-solid fa-spinner fa-spin mr-1"></i>
-                  {{ isSaving ? '處理中...' : (editModal.isNew ? '新增' : '儲存/更新') }}
+                  <i
+                    v-if="isSaving"
+                    class="fa-solid fa-spinner fa-spin mr-1"
+                  ></i>
+                  {{ isSaving ? '處理中...' : (editModal.isNew ? '新增' :
+                  '儲存/更新') }}
                 </button>
               </div>
             </div>
@@ -396,8 +403,8 @@
               }))
               .sort(
                 (a, b) =>
-                  (a.createdAt?.toMillis?.() || 0) -
-                  (b.createdAt?.toMillis?.() || 0),
+                  (a.createdAt?.toMillis?.() ?? (typeof a.createdAt === 'number' ? a.createdAt : 0)) -
+                  (b.createdAt?.toMillis?.() ?? (typeof b.createdAt === 'number' ? b.createdAt : 0)),
               );
           });
 
@@ -442,6 +449,7 @@
                 childrenList.value = profiles;
                 await loadTotalsForProfiles(profiles);
                 isLoading.value = false;
+                saveCache();
               },
             );
           };
@@ -504,6 +512,7 @@
                   (pointsByName.value[redeemModal.name] || 0) -
                   redeemModal.redeemCount,
               };
+              saveCache();
               showSuccessModal(`成功兌換 ${redeemModal.redeemCount} 點`);
             } catch (error) {
               alert("兌換失敗: " + error.message);
@@ -572,6 +581,30 @@
 
           const isSaving = ref(false);
 
+          const CACHE_KEY = 'stamp_summary_cache';
+
+          const tryLoadCache = () => {
+            try {
+              const raw = sessionStorage.getItem(CACHE_KEY);
+              if (!raw) return false;
+              childrenList.value = JSON.parse(raw);
+              return true;
+            } catch {
+              return false;
+            }
+          };
+
+          const saveCache = () => {
+            try {
+              const children = childrenList.value.map((p) => ({
+                ...p,
+                createdAt: p.createdAt?.toMillis?.() ?? p.createdAt ?? null,
+                updatedAt: p.updatedAt?.toMillis?.() ?? p.updatedAt ?? null,
+              }));
+              sessionStorage.setItem(CACHE_KEY, JSON.stringify(children));
+            } catch {}
+          };
+
           const saveProfile = async () => {
             if (isSaving.value) return;
 
@@ -616,6 +649,9 @@
           };
 
           onMounted(() => {
+            if (tryLoadCache()) {
+              isLoading.value = false;
+            }
             onFirebaseReady(loadData);
           });
 
