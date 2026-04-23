@@ -213,6 +213,20 @@
                 <template v-else>{{ i }}</template>
               </div>
             </div>
+
+            <div
+              v-if="isStampCountLoading"
+              class="absolute inset-0 z-20 flex items-center justify-center bg-white/70 backdrop-blur-[1px]"
+            >
+              <div class="flex flex-col items-center gap-2">
+                <div
+                  class="animate-spin rounded-full h-8 w-8 border-[3px] border-stone-300 border-t-stone-700"
+                ></div>
+                <p class="text-xs text-stone-500 tracking-wider">
+                  印章載入中...
+                </p>
+              </div>
+            </div>
           </div>
 
           <div
@@ -305,6 +319,7 @@
           const transactions = ref([]);
           const childrenList = ref([]);
           const isLoading = ref(true);
+          const isStampCountLoading = ref(false);
 
           let unsubTrans = null;
           let unsubProfiles = null;
@@ -379,8 +394,11 @@
 
             if (!name) {
               transactions.value = [];
+              isStampCountLoading.value = false;
               return;
             }
+
+            isStampCountLoading.value = true;
 
             const { collection, onSnapshot, query, where } =
               window.firebaseModules;
@@ -388,12 +406,19 @@
               collection(window.db, COLLECTIONS.transactions),
               where("name", "==", name),
             );
-            unsubTrans = onSnapshot(q, (snap) => {
-              transactions.value = snap.docs.map((doc) => ({
-                id: doc.id,
-                ...doc.data(),
-              }));
-            });
+            unsubTrans = onSnapshot(
+              q,
+              (snap) => {
+                transactions.value = snap.docs.map((doc) => ({
+                  id: doc.id,
+                  ...doc.data(),
+                }));
+                isStampCountLoading.value = false;
+              },
+              () => {
+                isStampCountLoading.value = false;
+              },
+            );
           };
 
           const loadData = () => {
@@ -496,6 +521,7 @@
             getTheme,
             addTransaction,
             isLoading,
+            isStampCountLoading,
           };
         },
         template: document.getElementById("stamp-template").innerHTML,

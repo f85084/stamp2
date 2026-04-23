@@ -101,6 +101,12 @@
                       class="text-stone-600 font-mono text-sm font-bold"
                       >{{ item.total }}</span
                     >
+                    <span
+                      v-else
+                      class="inline-flex items-center align-middle ml-1"
+                    >
+                      <i class="fa-solid fa-spinner fa-spin text-stone-400"></i>
+                    </span>
                   </p>
                 </div>
               </div>
@@ -113,6 +119,7 @@
                 </button>
                 <button
                   @click="showRedeemModal(item.name, item.total)"
+                  :disabled="item.total === null"
                   class="px-4 py-2 bg-rose-50 text-rose-500 hover:bg-rose-100 rounded-xl text-xs font-bold border border-rose-100"
                 >
                   兌換
@@ -421,6 +428,7 @@
             const { collection, query, where, getDocs } =
               window.firebaseModules;
             const nextMap = {};
+            isLoadingPoints.value = true;
 
             await Promise.all(
               profiles.map(async (profile) => {
@@ -595,7 +603,18 @@
             try {
               const raw = sessionStorage.getItem(CACHE_KEY);
               if (!raw) return false;
-              childrenList.value = JSON.parse(raw);
+              const parsed = JSON.parse(raw);
+              if (!parsed || !Array.isArray(parsed.childrenList)) {
+                return false;
+              }
+
+              childrenList.value = parsed.childrenList;
+              pointsByName.value =
+                parsed.pointsByName && typeof parsed.pointsByName === "object"
+                  ? parsed.pointsByName
+                  : {};
+              isLoadingPoints.value =
+                Object.keys(pointsByName.value).length === 0;
               return true;
             } catch {
               return false;
@@ -609,7 +628,11 @@
                 createdAt: p.createdAt?.toMillis?.() ?? p.createdAt ?? null,
                 updatedAt: p.updatedAt?.toMillis?.() ?? p.updatedAt ?? null,
               }));
-              sessionStorage.setItem(CACHE_KEY, JSON.stringify(children));
+              const payload = {
+                childrenList: children,
+                pointsByName: pointsByName.value,
+              };
+              sessionStorage.setItem(CACHE_KEY, JSON.stringify(payload));
             } catch {}
           };
 
